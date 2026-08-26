@@ -1,0 +1,7 @@
+results/
+wakeup
+spawn
+iostall
+tone
+*.raw
+*.bin
