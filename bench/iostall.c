@@ -23,6 +23,7 @@ static volatile int done;
 static long nprobe;
 
 #define BULK_BS (128 * 1024)
+#define BULK_CAP (512UL << 20)
 #define PROBE_SZ 4096
 
 static uint64_t
@@ -40,6 +41,7 @@ writer(void *arg)
 {
 	char path[4096], buf[BULK_BS];
 	uint64_t deadline = nsnow() + seconds * 1e9;
+	off_t off = 0;
 	ssize_t n;
 	int fd;
 
@@ -50,9 +52,12 @@ writer(void *arg)
 	if (fd == -1)
 		err(1, "open %s", path);
 	while (nsnow() < deadline) {
-		n = write(fd, buf, sizeof(buf));
+		if (off >= (off_t)BULK_CAP)
+			off = 0;
+		n = pwrite(fd, buf, sizeof(buf), off);
 		if (n == -1)
-			err(1, "write");
+			err(1, "pwrite");
+		off += n;
 	}
 	close(fd);
 	done = 1;
