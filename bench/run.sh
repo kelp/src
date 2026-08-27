@@ -35,6 +35,7 @@ mkdir -p "$DIR/results"
 		sh -c 'while :; do :; done' &
 		i=$((i + 1))
 	done
+	sleep 1
 	LOAD_PIDS=$(jobs -p)
 	./wakeup
 	./spawn
@@ -42,6 +43,23 @@ mkdir -p "$DIR/results"
 		kill $p 2>/dev/null || true
 	done
 	wait 2>/dev/null || true
+
+	if [ "${RUN_NICELOAD:-1}" = "1" ]; then
+		echo "== scenario=niceload spinners=$NC nice=19"
+		i=0
+		while [ $i -lt $NC ]; do
+			nice -n 19 sh -c 'while :; do :; done' &
+			i=$((i + 1))
+		done
+		sleep 1
+		LOAD_PIDS=$(jobs -p)
+		./wakeup
+		./spawn
+		for p in $LOAD_PIDS; do
+			kill $p 2>/dev/null || true
+		done
+		wait 2>/dev/null || true
+	fi
 
 	echo "== scenario=iostall seconds=20"
 	./iostall . 20
