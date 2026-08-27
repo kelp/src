@@ -244,6 +244,38 @@ captured around a stall window will show exactly which task
 holds which cpu across the gap and what event finally frees
 it.
 
+### Pass 1.4: btrace/dt run-queue histogram (first dt data)
+
+Getting dt running required: variant kernel with
+`pseudo-device dt` (stock GENERIC lacks it), securelevel -1
+via an /etc/rc.securelevel SCRIPT (it is sh'd, not read; a
+value of 0 is overridden back to 1 by rc's default rule) and
+`sysctl -w kern.allowdt=1` at securelevel < 1.
+
+btrace quirks found: printf lacks %l modifiers (long values
+must stay inside maps/hists), expressions cap at 5 operands,
+interval:hz probes do not fire, END prints on SIGINT.
+
+run-queue latency (enqueue -> on-cpu, microseconds) for a
+full loaded spawn session, ~6M on-cpu events:
+
+  [0,32us)      ~5.5M   healthy bulk
+  [1K,2K)       17,839  unexplained 1-2ms mode (not tick)
+  [64K,128K)     1,178  THE quantum-scale stall population
+  [128K,+)         200+ tail to seconds (dequeue-churn
+                          artifact suspected, see below)
+
+The 64-128ms bucket is the smoking gun population: it
+contains exactly the p99~100ms events the spawn benchmark
+reports, now attributed to SCHEDULER RUN-QUEUE WAIT rather
+than any syscall, lock, or disk path. The kernel genuinely
+leaves these tasks runnable-but-unscheduled for 1-2 full
+round-robin periods.
+
+Next: per-tid big-bucket counts (@bigcnt[tid]) correlated
+with static spinner tids from ps, to answer WHO starves:
+fresh children (expected) or someone else (surprise).
+
 Headline finding from the very first loaded run: under four
 spinners, spawn p99 lands almost exactly on a 100ms boundary
 and wakeup max hits 200ms. That is the roundrobin_period
