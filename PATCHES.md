@@ -276,6 +276,49 @@ Next: per-tid big-bucket counts (@bigcnt[tid]) correlated
 with static spinner tids from ps, to answer WHO starves:
 fresh children (expected) or someone else (surprise).
 
+### Pass 1.5: per-tid attribution — the FIFO-tail mechanism
+
+@bigcnt[tid] over a loaded spawn session concentrates on a
+handful of static tids, not thousands of children:
+
+  ~4 tids with 123-396 stalls each  = the four spinners
+  ~7 singleton tids (2-44 each)     = spawn children/misc
+
+Reconciled with ktrace (children stall ~1% of spawns, each
+a singleton tid) and the hist totals, ONE mechanism now
+explains every observation in the loop:
+
+  A task that loses its cpu and re-enqueues lands at the
+  FIFO TAIL of its priority queue and waits a full quantum
+  before its turn. Spinners are perpetually re-enqueued
+  after preemption (constant 100ms waits); children hit the
+  same wait occasionally (~1% = the benchmark's p99).
+
+Consistency checks that all pass:
+- nice(-1) rank advantage beats queue position (50x fix)
+- three enqueue-side comparison fixes do nothing (they
+  change when resched fires, not where the loser waits)
+- exp3 RR-quantum decoupling failed because the quantum the
+  loser waits for is set by WHOEVER RAN BEFORE it in queue
+  order, not by roundrobin_period... consistent with the
+  hz-sweep: tail == quantum length == 10*hardclock period
+  regardless of RR timer cadence.
+
+Candidate countermeasure families, in increasing scope:
+  a) FIFO tail -> head rotation among equals at each
+     quantum expiry (true round-robin between equals)
+  b) shorter effective quanta for tasks that just yielded
+     vs tasks that ran long (scheduling-class debt)
+  c) interactivity credit per ULE: sleep/runtime ratio
+     decays estcpu continuously, giving woken tasks rank
+     advantage proportional to recent sleep
+
+All three would be tested through the established pair
+harness; each maps to a small, reviewable kern_sched.c /
+sched_bsd.c change. Reference reading queued:
+freebsd sched_ule.c (interactivity + pickcpu) and linux
+fair.c (wakeup granularity) for design shapes only.
+
 Headline finding from the very first loaded run: under four
 spinners, spawn p99 lands almost exactly on a 100ms boundary
 and wakeup max hits 200ms. That is the roundrobin_period
