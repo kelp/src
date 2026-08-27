@@ -179,6 +179,40 @@ actually goes. This doubles as the E-track reconnaissance
 kern_clock.c keeps the guard-patched hook (default behaviour
 unchanged); a carried patch needs a proven mechanism first.
 
+### Loop 1 progress: pass 1.1 verdict + passes 1.2/A-exp
+
+Pass 1.1 (discriminator): niced load kills the tail
+completely (spawn p99 100ms -> 1.85ms). Equal-priority
+competition required; serialization family excluded.
+
+Pass 1.2 (ktrace attribution, 400 spawns under load): four
+stalls >15ms summing 1.34s, ALL showing the same shape:
+parent forks instantly, blocks in wait4, and the child's
+FIRST trace record appears only 79-614ms later. The victim
+is precisely the freshly forked child waiting for its first
+dispatch; nothing kernel-side in the fork/wait paths is slow.
+
+Nice(-1) discriminator: parent one notch above competitors ->
+p99 collapses to 2.0ms (50x), residual stalls pushed into
+p999 because the fixed nice delta erodes under accumulation.
+Rank competition among equals is the gate; queue position
+(FIFO tail) decides ties.
+
+EXP-A (option WAKE_PREEMPT: need_resched also on EQUAL
+priority at setrunqueue): REFUTED as fix. Loaded spawn p99
+91.5ms vs stock 100.0ms. Preempting equals does not rescue
+tail position; FIFO ordering keeps latecomers behind peers
+until rotation revisits them.
+
+Model correction found while drafting EXP-B: fork ZEROES
+p_estcpu (p_startzero region; sole assignment site is
+sched_bsd.c:513 schedclock accrual). Children start
+best-ranked by theory yet starve in practice -> live-rank
+assumptions are wrong somewhere. Next instrument (pass 1.3):
+sample ps -O pri,ni,ucomm frames inside the stall window to
+read actual ranks of spinner vs bench tasks while starving,
+then design EXP-C against measured values, not theory.
+
 Headline finding from the very first loaded run: under four
 spinners, spawn p99 lands almost exactly on a 100ms boundary
 and wakeup max hits 200ms. That is the roundrobin_period
