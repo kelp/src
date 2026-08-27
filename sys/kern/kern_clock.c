@@ -105,7 +105,18 @@ initclocks(void)
 
 	KASSERT(hz > 0 && hz <= 1000000000);
 	hardclock_period = 1000000000 / hz;
+#ifdef RRQUANTUM_NS
+	/*
+	 * Decouple the round-robin quantum from the clock tick rate.
+	 * See PATCHES.md A3: loaded-latency tails sit on the old
+	 * 10*hardclock coupling; a smaller absolute quantum bounds
+	 * them without extra timer interrupts when >= hardclock_period.
+	 */
+	roundrobin_period = RRQUANTUM_NS;
+	KASSERT(roundrobin_period >= hardclock_period);
+#else
 	roundrobin_period = hardclock_period * 10;
+#endif
 
 	KASSERT(stathz >= 1 && stathz <= 1000000000);
 
