@@ -296,14 +296,19 @@ setrunqueue(struct cpu_info *ci, struct proc *p, uint8_t prio)
 		cpu_unidle(p->p_cpu);
 	else if (prio < spc->spc_curpriority)
 		need_resched(ci);
-#ifdef WAKE_PREEMPT
+#ifdef LIVE_PRI
 	/*
-	 * See PATCHES.md loop 1: among priority-saturated tasks a
-	 * fresh task waits out whole quanta because equals never
-	 * preempt equals. Signalling resched for equal priorities
-	 * gives wakeups a fair shot without touching tick rate.
+	 * See PATCHES.md loop 1 pass 1.3: spc_curpriority is only
+	 * refreshed on userret and wake, so a pure compute hog
+	 * freezes its cpu's baseline at a stale low value and new
+	 * arrivals at better ranks never preempt it. Compare
+	 * against the live on-cpu priority instead.
 	 */
-	else if (prio == spc->spc_curpriority)
+	else if (p->p_cpu != ci && p->p_cpu->ci_curproc != NULL &&
+	    prio < p->p_cpu->ci_curproc->p_usrpri)
+		need_resched(p->p_cpu);
+	else if (p->p_cpu == ci && curproc != NULL &&
+	    prio < curproc->p_usrpri)
 		need_resched(ci);
 #endif
 }

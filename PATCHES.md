@@ -213,6 +213,37 @@ sample ps -O pri,ni,ucomm frames inside the stall window to
 read actual ranks of spinner vs bench tasks while starving,
 then design EXP-C against measured values, not theory.
 
+### Pass 1.3 frame capture + EXP-C
+
+Frame caught mid-stall inside the guest:
+
+  PID   PRI NI STAT  CPU COMM
+  5123   52  0 Rp/0  24 sh      hog running on cpu0
+  37831  50  0 R+/0  36 true    fresh child, BETTER rank
+
+Child outranks the hog outright yet stays unserved. Also
+notable: hog pri ~52-54 means saturated estcpu does NOT push
+ranks to MAXPRI as classic 4BSD math would suggest; decay at
+1Hz keeps mid-range values.
+
+EXP-C (option LIVE_PRI: setrunqueue also compares against the
+live on-cpu task's p_usrpri instead of possibly-stale
+spc_curpriority): REFUTED. Loaded spawn p99 = 99961us vs
+stock control 99900us; wakeup max even regressed on that
+sample (284ms).
+
+Interim synthesis after three refuted scheduler-side fixes:
+rank advantage (nice -1) fully erases the tail, but three
+different enqueue-time comparison/queueing patches do not.
+Whatever delays the child is not decided by setrunqueue-time
+comparisons. Spc_curpriority staleness and FIFO ties are real
+quirks but not the gate. Next instrument is definitive rather
+than speculative: dt(4) static sched tracepoints (enqueue,
+on__cpu, off__cpu are compiled TRACEPOINTs in kern_sched.c)
+captured around a stall window will show exactly which task
+holds which cpu across the gap and what event finally frees
+it.
+
 Headline finding from the very first loaded run: under four
 spinners, spawn p99 lands almost exactly on a 100ms boundary
 and wakeup max hits 200ms. That is the roundrobin_period
