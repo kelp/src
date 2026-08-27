@@ -107,10 +107,36 @@ and hz1000 loaded p50 across six samples spans 9890-9958us
 single paired runs are decision-grade for mechanisms of this
 size; medians need 2-3 repeats when deltas are <10%.
 
-One anomaly logged for follow-up: one stock control showed
-loaded wakeup p50 2.1us (best-ever) instead of ~9us,
-suggesting the spinner start race inside run.sh occasionally
-leaves CPUs partially idle during the wakeup loop.
+## Loop 1: tail attribution (goal loop, serial)
+
+Hypothesis v1: some per-tick-counted scheduling mechanism,
+not the RR quantum, gates loaded spawn resumes.
+
+### Pass 1.1: niced-spinners discriminator
+
+Stock kernel, four scenarios back-to-back in one session:
+idle, cpuload (equal-priority spinners), niceload (same
+spinners at nice +19), iostall. Harness gained the niceload
+scenario and a 1s settle before measuring (startup-fork
+transients were polluting earlier samples).
+
+Result: complete tail collapse under nice alone.
+
+| scenario | wakeup max | spawn p99 |
+|----------|-----------|-----------|
+| cpuload  | 100.0ms   | 100.0ms   |
+| niceload | 0.20ms    | 1.85ms    |
+
+Family verdict: scheduling competition among EQUAL
+priorities is required for the tail; serialization family
+(lock holders, disk paths) cannot explain nice-sensitivity.
+Estcpu/priority interplay is suspect #1 going forward.
+
+Next pass (1.2): ktrace the spawn loop under equal-priority
+load in-guest; kdump timings attribute the 100ms to concrete
+switch/syscall records instead of theory. dt/profile remain
+backup instruments if ktrace context-switch data is too
+coarse.
 
 Decision: carry no change yet from the A family. Pure hz
 increases trade a median cliff for tail improvements; the
