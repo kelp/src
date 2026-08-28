@@ -434,3 +434,28 @@ falsification records.
 Carried-patch candidate #1: RRQUANTUM_NS=20ms (pass 1.7/1.8
 evidence). Patch shape decision pending: absolute-ns default vs
 config knob.
+
+### Pass 1.9: EXP-A/EXP-C re-verified on fresh trees - verdicts flip
+
+Both variants rebuilt with verified sources (WAKE_PREEMPT and
+LIVE_PRI blocks grep-verified in the guest tree; kernels booted as
+WP1#0 and LP1#0). Standard suite pairs:
+
+  EXP-A wakepreempt (equals preempt equals at enqueue):
+    cpuload spawn p99:  100005 ->   2363 us  (42x better)
+    cpuload spawn p50:    1079 ->   1592 us  (+47% resched cost)
+    cpuload spawn p999: 139544 -> 101895 us  (residual ~100ms)
+    wakeup p50 under load: improved (faster handoffs)
+  EXP-C livepri (live-rank compare):
+    cpuload spawn p99:  99975 us  -  NULL CONFIRMED
+
+The original EXP-A null was a stale-tree artifact (pass 1.6); the
+patch is the strongest tail fix measured - 42x vs the quantum's
+4.7x. Cost: the resched storm adds ~50% to the loaded p50, and a
+~0.1% residual keeps the ~100ms class. The residual is consistent
+with the stale spc_curpriority path (prio == stale-low fails both
+the < and == tests), motivating a WAKE_PREEMPT+LIVE_PRI combination
+run next. Idle suites show no regression on either kernel.
+
+kern_sched.c now carries both blocks side by side; each variant's
+config option selects exactly one.
