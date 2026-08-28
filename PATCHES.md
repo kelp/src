@@ -377,3 +377,33 @@ Re-verification queued: rebuild rrdt on a fresh tree with a
 build-artifact check (grep rrquantum in the kernel binary), rerun the
 pair; then rebuild + rerun EXP-A (WAKE_PREEMPT) and EXP-C (LIVE_PRI).
 Supersedes the exp3 interpretation recorded in pass 1.5.
+
+### Pass 1.7: quantum fix CONFIRMED - first real tail improvement
+
+Fresh-tree rrdt rebuild with the full verification chain: guest
+source carries RRQUANTUM_NS (grep x2), the binary carries the
+rrquantum string (grep x1), kernel boots as RRDT#0. Paired run vs
+dt1 stock control, hz=100, 4 spinners, spawn n=20000:
+
+  spawn (us)   stock     rr=20ms
+  p50          1118      1572
+  p90          1573      19751
+  p99         100052     21220    (4.7x better)
+  p999        189669     153593
+  max        1081002     952570
+
+Run-queue wait histogram: [64K,128K) collapsed 1373 -> 153 (9x);
+[16K,32K) grew 114 -> 3408 (30x). The wait mass moved from the
+100ms quantum to the 20ms one - the pass 1.5 FIFO-tail mechanism
+holds with roundrobin_period as the gate, matching roundrobin()'s
+code (preempt within 2 fires when spc_nrun > 0).
+
+Trade to note: the loaded bulk got lumpier (p90 1.6 -> 19.8 ms) -
+re-enqueued equals now wait one 20ms slice instead of mostly
+slipping in under 2ms. The bound is what improved: a 100ms spike
+became a 20ms plateau, and p999/max improved too.
+
+Next: full run.sh pair on rr20 (idle/cpuload/iostall/niceload) per
+the established methodology; rebuild + rerun EXP-A/EXP-C to restore
+honest falsification records; then the carried-patch decision
+(quantum default vs configurable option).
