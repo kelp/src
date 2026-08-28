@@ -459,3 +459,34 @@ run next. Idle suites show no regression on either kernel.
 
 kern_sched.c now carries both blocks side by side; each variant's
 config option selects exactly one.
+
+### Pass 2.0: combination runs - wp1 stands alone; p999 class survives
+
+Two combos built on verified fresh trees, standard pairs:
+
+  WPLP (WAKE_PREEMPT+LIVE_PRI), cpuload spawn:
+    p99 29768 us - combination REJECTED (worse than wp1's 2363)
+    p999 123527 us - residual not killed
+  WPRR (WAKE_PREEMPT+RRQUANTUM 20ms), cpuload spawn:
+    p99 21636 us - behaves like rr20, wp's 42x win vanishes
+    p999 99491 us - residual not killed
+    niceload wakeup p50 improved 40% (9196 -> 5397 ns)
+
+Standings (cpuload spawn p50/p99/p999, us):
+
+  stock    1059  99975  101837
+  rr20     1047  20310  118325
+  wp1      1592   2363  101895
+  wplp     1123  29768  123527
+  wprr     1194  21636   99491
+
+Findings: enqueue-side patches do not stack - LIVE_PRI's extra
+resched conditions degrade wp1, and the 20ms quantum re-imposes a
+20ms bound that masks wp's equal-preempt win. The ~100ms p999 class
+(0.1% of spawns) survives stock and every variant: it is gated by
+neither enqueue-time resched nor the quantum - a separate, deeper
+mechanism (Loop 1 wakeup-floor family, next).
+
+Carried-patch decision remains open between wp1 (max tail
+compression, +47% loaded p50) and rr20 (moderate bound, free);
+both are honest, verified candidates.
