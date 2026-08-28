@@ -344,3 +344,36 @@ Rules:
 2. Revert beats rationalize: a regression reverts the patch.
 3. Upstream cherry-picks that fix or supersede a carried patch
    replace it; note the upstream commit hash in the row.
+
+### Pass 1.6: RRDT pair runs clean - and exposes the stale-tree bug
+
+Paired dt-traced sessions landed (RRDT rr=20ms vs dt1 stock, one boot
+each, hz=100 both): spawn p99 99951 vs 100056 us; @h [64K,128K) 1140
+vs 1131 events (window-normalized 16.1/s vs 12.7/s). Identical tails.
+
+Then roundrobin() (sched_bsd.c) was read properly: it preempts the
+current task within 2 RR fires whenever spc_nrun > 0. A REAL 20ms
+quantum must have collapsed the tail. It did not, because the quantum
+never reached the code: stage_build_named extracted sys.tgz only when
+/usr/src/sys was MISSING (created at a1build, never refreshed), so
+every variant since (wp1, lp1, q20, rrv, rrdt) compiled STALE
+pre-patch sources; my options rode as -D flags on hookless code. The
+compile-line flag proved the define was passed, not that code consumed
+it. Consequences: EXP-A, EXP-C, and exp3 nulls are VOID - they
+measured stock with unused defines. The dmesg rrquantum print was
+absent because the printf never compiled in, not from msgbuf loss.
+
+What stands: the hz sweep and dt1 (upstream config knobs), every
+stock measurement, and the ktrace/dt attribution chain including the
+pass 1.5 FIFO-tail finding.
+
+Harness fixes: stage_build_named now re-extracts the source
+unconditionally; btrace quirks recorded (one rule per probe type, one
+END block, keyed hist unsupported, map reads auto-create zero keys,
+nested-if map inserts can silently no-op - use filter guards); the
+exp_rrdt gate typo RRVDT->RRDT fixed.
+
+Re-verification queued: rebuild rrdt on a fresh tree with a
+build-artifact check (grep rrquantum in the kernel binary), rerun the
+pair; then rebuild + rerun EXP-A (WAKE_PREEMPT) and EXP-C (LIVE_PRI).
+Supersedes the exp3 interpretation recorded in pass 1.5.
