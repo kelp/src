@@ -407,3 +407,30 @@ Next: full run.sh pair on rr20 (idle/cpuload/iostall/niceload) per
 the established methodology; rebuild + rerun EXP-A/EXP-C to restore
 honest falsification records; then the carried-patch decision
 (quantum default vs configurable option).
+
+### Pass 1.8: rr20 full-suite pair - fix holds, no bulk regression
+
+Standard run.sh pair (stock-ctrl vs rr20ms, fresh controls, no
+tracing overhead), cpuload = 8 spinners:
+
+  cpuload spawn p99:  99991 -> 20310 us  (4.9x)
+  cpuload spawn p90:  1231 ->  1359 us   (no regression)
+  cpuload wakeup max: 100030 -> 80026 us (partial only)
+  niceload spawn p99: 1721 ->  1771 us   (both fine)
+  idle: no regressions either kernel
+  iostall max:        39827 ->  1855 us  (20x, Loop 2 signal)
+
+The p90 lumpiness seen under btrace tracing in pass 1.7 does NOT
+appear in the standard methodology - it was a tracing-interaction
+artifact. The quantum trade is clean: tail bound improves, bulk
+unchanged.
+
+Residual: the wakeup pair still hits an ~80ms max under cpuload
+(stock ~100ms). The futex-pair path has a second stall source the
+quantum only partially reaches - Loop 1 continues with the wakeup
+floor next, after EXP-A/EXP-C re-verification restores the
+falsification records.
+
+Carried-patch candidate #1: RRQUANTUM_NS=20ms (pass 1.7/1.8
+evidence). Patch shape decision pending: absolute-ns default vs
+config knob.
