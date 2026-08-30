@@ -543,3 +543,34 @@ Two new facts:
 Next: ktrace the bench under load, kdump -R in-guest, find which
 syscall sleeps carry the >50ms gaps; check softclockmp priority
 via ps.
+
+### Pass 2.4: the residual quantized - wait4 wakeups ride the RR timer
+
+Parent-only ktrace to an mfs file (ktrace-to-disk contaminates the
+tail badly: p99 58.7ms to disk vs 1.79ms to mfs), 5000 spawns
+under 4 spinners on wpdt:
+
+  p50 1070us  p90 1256  p99 1790  p999 301422  max 544145
+
+99% of spawns complete under 1.8ms, then a cliff. All 28 gaps
+>50ms are wait4 returns in the parent, and the deltas quantize to
+multiples of ~100ms: 0.1004, 0.1011, 0.2011, 0.3012, 0.3511,
+0.5137, 0.5441...
+
+Mechanism: on child exit the parent is woken and enqueued, but
+the enqueue-side resched MISSES - the carried patch tests
+prio == spc->spc_curpriority against a STALE value (updated only
+on userret/wake; a pure-user spinner never refreshes it), so the
+missed wakeups sit until the next roundrobin fire, which
+preempts on spc_nrun every 100ms. That is the whole p999 class.
+
+The untested combination is now obvious: equality against the
+LIVE on-cpu rank (curproc->p_usrpri), not the stale baseline.
+WPLP tested live-< (fires only when the waker outranks) and
+stale-==; live-== is the missing condition. Next: build "wplive"
+and pair it; if the p999 cliff collapses, amend carried patch 1.
+
+Tooling notes: kdump -R puts the delta in field 3 (pid, comm,
+delta, event); ktrace buffers belong on an mfs (mount_mfs -s
+65536 swap; chmod 1777 the mountpoint); analysis must finish
+before the guest dies - two captures were lost to that.
