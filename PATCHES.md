@@ -574,3 +574,20 @@ Tooling notes: kdump -R puts the delta in field 3 (pid, comm,
 delta, event); ktrace buffers belong on an mfs (mount_mfs -s
 65536 swap; chmod 1777 the mountpoint); analysis must finish
 before the guest dies - two captures were lost to that.
+
+### Pass 2.5: wplive null - the cliff is not enqueue-side
+
+wplive (live-rank equality alongside the stale check; source
+verified, booted WPLIVE#0), standard pair:
+
+  wplive cpuload spawn:  p50 1064  p90 1602  p99 1787  p999 101835
+  stock ctrl:            p50 1104  p90 1672  p99 99991  p999 101781
+
+p99 1.8ms confirms the carried patch still works; the ~102ms
+p999 cliff survives live equality. With pass 2.4's k*100ms
+quantization this means the enqueue-side resched is not the gate
+for the residual: the stalling task is likely the CHILD or the
+exit path itself, and the parent's wait4 gap merely mirrors it.
+Child-side ktrace (-i inherited, mfs file, $3 gap filter) is the
+next measurement: which child syscall or dispatch carries the
+k*100ms gap.

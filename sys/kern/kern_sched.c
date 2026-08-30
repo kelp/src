@@ -307,6 +307,19 @@ setrunqueue(struct cpu_info *ci, struct proc *p, uint8_t prio)
 	 */
 	else if (prio == spc->spc_curpriority)
 		need_resched(ci);
+#ifdef LIVE_EQ
+	/*
+	 * See PATCHES.md loop 1 pass 2.4: spc_curpriority only
+	 * refreshes on userret and wake, so a pure-user hog never
+	 * refreshes it and equality against the stale baseline
+	 * misses wakeups that then wait out whole RR periods
+	 * (child-exit wait4 gaps quantized to k*100ms). Test
+	 * equality against the live on-cpu rank as well.
+	 */
+	else if (p->p_cpu->ci_curproc != NULL &&
+	    prio == p->p_cpu->ci_curproc->p_usrpri)
+		need_resched(p->p_cpu);
+#endif
 #ifdef LIVE_PRI
 	/*
 	 * See PATCHES.md loop 1 pass 1.3: spc_curpriority is only
