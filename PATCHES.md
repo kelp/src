@@ -502,3 +502,21 @@ showed it masks the equal-preempt win.
 
 Known limitation carried with it: a ~0.1% residual p999 class
 (~100ms) that survives every tested variant - Loop 1 continues.
+
+### Pass 2.2: residual attribution attempt - partial
+
+wpdt (carried patch + dt) ran the per-tid stall trace under 4
+spinners + spawn 20000. The traced run's p99 inflated to 61ms (vs
+2.4ms untraced): btrace overhead itself perturbs the tail, so
+attribution is valid but magnitudes are not.
+
+@bigcnt: ~4 heavy hitters (241/136/125/107 stalls) plus ~500
+singletons. The heavy hitters do NOT match the spinner pids under
+the tid+100000 mapping - the residual is not (only) spinner
+re-queue waits. The @bigc[comm] map (direct per-comm attribution)
+was captured but fell below the 120-line fetch window; the guest
+rebooted before a second fetch, losing it.
+
+Next: rerun fetching the whole log before reboot; attribute by
+comm; ktrace one heavy hitter; compare with the wakeup-floor
+family (b).
