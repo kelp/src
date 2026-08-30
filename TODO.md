@@ -44,16 +44,16 @@ checked item below has a pass number and a commit there.
 
 ## Open
 
-- [ ] Residual hunt (Loop 1): [FOUND, pass 2.4] the ~0.5% residual
-  class is child-exit wakeups (parent wait4 gaps) quantized to
-  k*100ms - the enqueue-side resched misses because the carried
-  patch tests equality against the STALE spc_curpriority, so the
-  waker waits for the roundrobin fire. Next: build "wplive"
-  (equality against the LIVE curproc->p_usrpri added alongside
-  the stale check), run the standard pair; if the p999 cliff
-  collapses, amend carried patch 1. Also retry the softclockmp
-  priority check (ps output wrap ate it twice - write ps to a
-  file on an mfs, grep, short lines only).
+- [ ] Residual hunt (Loop 1): [passes 2.3-2.5] the ~0.5% residual
+  class is child-exit wait4 gaps quantized to k*100ms; enqueue-side
+  resched does not gate it (stale-eq carried patch keeps p99
+  1.8ms; live-eq added in wplive leaves p999 at 102ms). The stall
+  likely originates child-side or in the exit path (reaper). Next:
+  child-side ktrace (-i inherited into children, mfs file,
+  kdump -R with the gap in field $3, awk '$3+0>0.05') and find
+  which child syscall or dispatch carries the k*100ms gap; check
+  the reaper's wakeup path too. Also retry the softclockmp
+  priority check (write ps to a file, grep, short lines).
 - [ ] Wakeup-floor family (b), ULE-style interactivity credits:
   sleep/runtime ratio decays estcpu continuously, giving woken
   tasks rank advantage. Design against ../refs/freebsd-src
