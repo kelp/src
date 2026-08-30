@@ -44,12 +44,16 @@ checked item below has a pass number and a commit there.
 
 ## Open
 
-- [ ] Residual hunt (Loop 1): rerun the per-comm stall trace on a
-  wpdt-class kernel and fetch the WHOLE btrace log (cat or tail
-  -n 400) BEFORE the guest reboots - pass 2.2 lost @bigc[comm] to
-  a 120-line window. Attribute the ~0.1% ~100ms p999 class by
-  comm, then ktrace one heavy hitter. Known: not the four
-  spinners (pass 2.2 excluded them).
+- [ ] Residual hunt (Loop 1): [FOUND, pass 2.4] the ~0.5% residual
+  class is child-exit wakeups (parent wait4 gaps) quantized to
+  k*100ms - the enqueue-side resched misses because the carried
+  patch tests equality against the STALE spc_curpriority, so the
+  waker waits for the roundrobin fire. Next: build "wplive"
+  (equality against the LIVE curproc->p_usrpri added alongside
+  the stale check), run the standard pair; if the p999 cliff
+  collapses, amend carried patch 1. Also retry the softclockmp
+  priority check (ps output wrap ate it twice - write ps to a
+  file on an mfs, grep, short lines only).
 - [ ] Wakeup-floor family (b), ULE-style interactivity credits:
   sleep/runtime ratio decays estcpu continuously, giving woken
   tasks rank advantage. Design against ../refs/freebsd-src
