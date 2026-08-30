@@ -332,7 +332,7 @@ configured); first audio numbers must come from hardware.
 
 | # | Patch | Area | Measured delta | Status |
 |---|-------|------|----------------|--------|
-| - | none yet | - | - | - |
+| 1 | WAKE_PREEMPT: equal-priority wake-preempt in setrunqueue | A | loaded spawn p99 100ms -> 2.4ms (42x); loaded p50 +47%; idle unchanged | carried (default) |
 
 Areas: A timer/preemption, B writeback smoothing,
 C userland quick wins, D scheduler math, E kernel lock.
@@ -490,3 +490,15 @@ mechanism (Loop 1 wakeup-floor family, next).
 Carried-patch decision remains open between wp1 (max tail
 compression, +47% loaded p50) and rr20 (moderate bound, free);
 both are honest, verified candidates.
+
+### Pass 2.1: carried patch 1 - WAKE_PREEMPT becomes default behavior
+
+The fork's kernel now always signals need_resched when a task
+enqueues at the current task's priority (the #ifdef is gone).
+Evidence: passes 1.9-2.0 (42x p99 under load, +47% loaded p50,
+idle and niceload unchanged, iostall improved). RRQUANTUM_NS
+stays an available option but is not default: the combo runs
+showed it masks the equal-preempt win.
+
+Known limitation carried with it: a ~0.1% residual p999 class
+(~100ms) that survives every tested variant - Loop 1 continues.
