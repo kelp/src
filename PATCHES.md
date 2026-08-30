@@ -520,3 +520,26 @@ rebooted before a second fetch, losing it.
 Next: rerun fetching the whole log before reboot; attribute by
 comm; ktrace one heavy hitter; compare with the wakeup-floor
 family (b).
+
+### Pass 2.3: residual attribution - the comm map lands
+
+wpdt rerun of the pass 2.2 trace, WHOLE log fetched this time
+(4906 lines). Stalls >30ms by comm: sh (4 spinners) 522, spawn
+(parent) 249, btrace 241, true (children) 73, softclockmp 34,
+reaper 14, systqmp 13, ntpd 12, softnet0 6, misc 8. Pid map
+cross-checks exactly: the four spinner pids sum to 522.
+
+Two new facts:
+1. @bigmax caps at 47ms - NO task waited longer in the run queue,
+   yet the bench measured max_us=900973 and p999=193262. The
+   extreme tail (>47ms) is NOT run-queue wait: it is a sleep path
+   inside the fork/exec/wait chain (or tracing distortion -
+   traced p99 85ms vs 2.4ms untraced).
+2. Kernel threads stall too: softclockmp (the MP softclock/timer
+   thread) waited >30ms 34 times. Timer-thread starvation would
+   delay timeout wakeups system-wide - candidate mechanism for
+   the residual.
+
+Next: ktrace the bench under load, kdump -R in-guest, find which
+syscall sleeps carry the >50ms gaps; check softclockmp priority
+via ps.
